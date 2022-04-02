@@ -50,17 +50,9 @@ async def sell(ctx, num, stock):
     else:
         await ctx.send(f'Unable to sell stock (You do not own {num} of this stock)')
 
-@bot.command(help = 'Lists some stocks that you can buy')
+@bot.command(help = 'Lists some suggested stocks that you can buy')
 async def listStocks(ctx):
-    response = requests.get('https://api.twelvedata.com/stocks')
-    symbols = []
-    for stock in json.loads(response.text)['data']:
-        if stock['country'] == 'United States' and stock['currency'] == 'USD':
-            symbols.append(stock['symbol'])
-    str = ''
-    for i in range(300):
-        str += symbols[i] + ", "
-    await ctx.send(str[:-2])
+    await ctx.send('AAPL, MSFT, GOOG, AMZN, TSLA, BRK.A, NVDA, FB, UNH, V, JNJ, WMT, JPM, PG, MA, XOM, BAC, CVX, HD, BABA')
 
 @bot.command(help = 'Lists stocks that you bought along with your balance')
 async def showPortfolio(ctx):
