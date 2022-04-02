@@ -23,7 +23,7 @@ async def on_message(message):
         await message.channel.send('Testing 1 2 3!')
     await bot.process_commands(message)
 
-@bot.command(help = 'Changes your current balance to ')
+@bot.command(help = 'Changes your current balance to the amount specified')
 async def setBalance(ctx, bal):
     balance = bal
     await ctx.send(f'Balance changed to ${bal}')
@@ -37,16 +37,16 @@ async def buy(ctx, num, stock):
     balance = 10000.0
     response = requests.get(f'https://api.twelvedata.com/price?symbol={stock}&apikey=a8b0b60da8d84235a0da19805b2552f3')
     price = float(json.loads(response.text)['price'])
-    if balance >= num * price:
-        balance -= num * price
+    if balance >= int(num) * price:
+        balance -= int(num) * price
     else:
         await ctx.send('Unable to buy stock (Not enough funds)')
 
 @bot.command(help = 'Removes the stock from your account and adds current stock price to balance if you own the stock')
 async def sell(ctx, num, stock):
     response = requests.get(f'https://api.twelvedata.com/price?symbol={stock}&apikey=a8b0b60da8d84235a0da19805b2552f3')
-    if num <= user.stock.amount:
-        balance += num * float(response.text)
+    if int(num) <= user.stock.amount:
+        balance += int(num) * float(response.text)
     else:
         await ctx.send(f'Unable to sell stock (You do not own {num} of this stock)')
 
@@ -57,8 +57,22 @@ async def listStocks(ctx):
     for stock in json.loads(response.text)['data']:
         if stock['country'] == 'United States' and stock['currency'] == 'USD':
             symbols.append(stock['symbol'])
-    for i in range(20):
-        await ctx.send(symbols[i])
-        print(symbols[i])
+    str = ''
+    for i in range(300):
+        str += symbols[i] + ", "
+    await ctx.send(str[:-2])
+
+@bot.command(help = 'Lists stocks that you bought along with your balance')
+async def showPortfolio(ctx):
+    embed = discord.Embed(title = 'Stock Portfolio')
+    embed.add_field(name = 'User', value = ctx.message.author.name)
+    balance = 10000
+    embed.add_field(name = 'Balance', value = balance)
+    s = ''
+    stocks = [{'num': 2, 'symbol': 'AAPL'}, {'num': 3, 'symbol': 'TSLA'}, {'num': 1, 'symbol': 'FB'}]
+    for stock in stocks:
+        s += str(stock['num']) + ' ' + stock['symbol'] + ', '
+    embed.add_field(name = 'Stocks', value = s[:-2])
+    await ctx.send(embed = embed)
 
 bot.run(TOKEN)
