@@ -26,6 +26,14 @@ collection = db["users"]
 def get_user_db(id):
     return collection.find_one({"_id": id})
 
+# method returns the amount of stocks of the stock desired to sell and the index of that stock in the portfolio array
+def has_x_stock(stock, user):
+    for i in range(0, len(user['portfolio'])):
+        print(user['portfolio'][i]['stock_symbol'])
+        if (user['portfolio'][i]['stock_symbol'] is stock):
+            return [user['portfolio'][i]['stock_qty'], i]
+    return [-1, -1]
+
 @bot.event
 async def on_ready():
     print(f'Bot connected as {bot.user}')
@@ -38,8 +46,6 @@ async def on_message(message):
 
 
 @bot.command(help = 'Set a new balance')
-
-
 async def setBalance(ctx, bal):
     user_id = ctx.message.author.id
     user_name = ctx.message.author.name
@@ -149,15 +155,6 @@ async def deposit(ctx, qty):
     user = get_user_db(ctx.message.author.id)
     user['balance'] += float(qty)
     await ctx.send(f"{user['name']}, added ${qty} to your balance. Your new balance is ${user['balance']}")
-
-# method returns the amount of stocks of the stock desired to sell and the index of that stock in the portfolio array
-def has_x_stock(stock, user):
-    for i in range(0, len(user['portfolio'])):
-        print(user['portfolio'][i]['stock_symbol'])
-        if (user['portfolio'][i]['stock_symbol'] is stock):
-            return [user['portfolio'][i]['stock_qty'], i]
-    return [-1, -1]
-
 
 @bot.command(help = 'reset the balance') 
 async def reset(ctx):
