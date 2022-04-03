@@ -160,7 +160,7 @@ async def deposit(ctx, qty):
 async def reset(ctx):
     userId = ctx.message.author.id;
     # delete data from this user from the DB
-    collection.delete_one({"_userID" : userId})
+    collection.delete_one({"_id" : userId})
     await ctx.channel.send('Balance and operations were reset')
 
 bot.run(TOKEN)
