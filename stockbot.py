@@ -74,9 +74,11 @@ async def buy(ctx, num, stock):
 
     if (not user): 
         await ctx.send("You don't have a balance to purchase stocks!")
+        return
     
     num = int(num)
     balance = user['balance']
+
     response = requests.get(f'https://api.twelvedata.com/price?symbol={stock}&apikey={API_KEY}')
     price = float(json.loads(response.text)['price'])
 
@@ -90,7 +92,7 @@ async def buy(ctx, num, stock):
         "stock_qty": num,
         "stock_symbol": stock
     }
-    collection.update_one({'_id': user_id}, {'$push': {'portfolio': newStock}})
+    collection.update_one({'_id': ctx.message.author.id}, {'$push': {'portfolio': newStock}})
     await ctx.send(f"{user['name']} bought {num} shares of {stock}")
 
 @bot.command(help = 'Removes the stock from your account and adds current stock price to balance if you own the stock')
