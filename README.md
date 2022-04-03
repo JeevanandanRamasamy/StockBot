@@ -1,5 +1,5 @@
 # StockBot
 
-A DiscordBot that allows users to buy stocks of possible companies from an API. Every user has a starting balance, and it is up to the user to make sure that they are investing in stocks in companies that succeed in order to make profit; otherwise, they will lose money if companies fail. When a user invests in a company, they will receive a stock in return.
+A DiscordBot that allows users to simulate buying stocks of companies using an API. Every user can set a starting balance and they can use their balance to 'invest' in companies. When a user buys or sells a stock, the program queries the real-time stock price and uses this value to add and subtract from their balance. Data needed for the operations are stored using MongoDB.
 
 ## Documentation
