@@ -1,14 +1,18 @@
+from http.client import MOVED_PERMANENTLY
 import os
 import discord
 import pymongo
+import requests
+import json
 from dotenv import load_dotenv
 from discord.ext import commands
 from pymongo import MongoClient
 
+#load env variables
 load_dotenv()
 TOKEN = os.getenv('DISCORD_TOKEN')
 GUILD = os.getenv('DISCORD_GUILD')
-STARTINGBALANCE = 0
+API_KEY = os.getenv('API_KEY')
 
 bot = commands.Bot(command_prefix = '$')
 
@@ -17,7 +21,10 @@ cluster = MongoClient("mongodb+srv://stockbot:XLoy90B9uUYMCkZf@stockbot.t61sf.mo
 db = cluster["stockbot"]
 collection = db["users"]
 
-#cluster = MongoClient('CONNECTION_URL')
+# helper functions
+# function that returns a user from the database given its id 
+def get_user_db(id):
+    return collection.find_one({"_id": id})
 
 @bot.event
 async def on_ready():
@@ -29,48 +36,128 @@ async def on_message(message):
         await message.channel.send('Testing 1 2 3!')
     await bot.process_commands(message)
 
+
 @bot.command(help = 'Set a new balance')
+
+
 async def setBalance(ctx, bal):
-    userId = ctx.message.author.id;
+    user_id = ctx.message.author.id
+    user_name = ctx.message.author.name
+    user = get_user_db(user_id)
     # If user already exists, locate the user and change the balance
-    user = collection.find_one({"_userID": userId})
     if user:
-        collection.update_one({"_userID": userId}, {"$set": {"balance": bal}})
-    # If not create a post
+        collection.update_one(user, {"$set": {"balance": float(bal)}})
+    # If not create a new user
     else:
-        post = {"_userID": userId, "balance": bal}
-        await collection.insert_one(post);
-    
-    await ctx.send(f'Balance set to ${bal}')
+        user = {"_id": user_id, "name": user_name, "balance": float(bal), "portfolio": []}
+        collection.insert_one(user)
+    await ctx.send(f'{user_name}, your balance was set to ${bal}')
 
 @bot.command(help = 'Returns your current balance')
 async def getBalance(ctx):
-    userId = ctx.message.author.id
-    userName = ctx.message.author.name
+    user_name = ctx.message.author.name
+    user = get_user_db(ctx.message.author.id)
+    msg = f'{user_name}, '
     # If the user exists, retrieve the user balance
-    user = collection.find_one({'_userID': userId})
     if user:  # check if user exists
         balance = user['balance']
-        msg = f'Your balance is: ${balance}'
+        msg =+ f'your balance is: ${balance}'
     else: 
-        msg = f'{userName}, set a balance first.'
+        msg =+ f'{user_name}, set a balance first.'
     await ctx.send(msg)
 
 @bot.command(help = 'Adds the stock to your account and subtracts cost from balance if you have sufficient funds')
-async def buy(ctx, num, stockName):
-    userId = ctx.message.author.id;
-    balance = collection.find_one({'_userID:': userId})['balance']
-    if (balance >= num * stockName.getPrice()):
-        balance -= num * stockName.getPrice()
-    else:
-        await ctx.channel.send('Unable to buy stock (Not enough funds)')
+async def buy(ctx, num, stock):
+    num = int(num)
+    user_id = ctx.message.author.id
+    user_name = ctx.message.author.name
+    user = get_user_db(user_id)
+
+    response = requests.get(f'https://api.twelvedata.com/price?symbol={stock}&apikey={API_KEY}')
+    price = float(json.loads(response.text)['price'])
+
+
+    if (user['balance'] < num * price):
+        await ctx.send('Unable to buy stock (Not enough funds)')
+        return
+
+    collection.update_one(user, {"$set": {'balance': user['balance'] - (price*num)}})
+    # add the stock to the portfolio of the user
+    newStock = {
+        "stock_qty": num,
+        "stock_symbol": stock
+    }
+    collection.update_one({'_id': ctx.message.author.id}, {'$push': {'portfolio': newStock}})
+    await ctx.send(f'{user_name} bought {num} shares of {stock}')
+
 
 @bot.command(help = 'Removes the stock from your account and adds current stock price to balance if you own the stock')
-async def sell(ctx, num, stockName):
-    if (num <= user.stock.amount):
-        balance += num * stockName.getPrice()
+async def sell(ctx, num, stock):
+    #parsing num into an integer
+    num = int(num)
+    user = get_user_db(ctx.message.author.id)
+    balance = user['balance']
+
+    # destructure qty and index of stock to sell
+    stock_qty, stock_index = has_x_stock(user, stock)
+
+    # If user doesn't have any stock or less than the amount trying to sell
+    if (stock_qty == -1 or stock_qty < num):
+        await ctx.send(f"{user['name']}, unable to sell stock (You do not own {num} of this stock)")
+        return
+    
+    # If selling all shares, remove stock from portfolio
+    if (stock_qty == num):
+        collection.update_one({"_id": user["_id"]}, {"$pull": { f'portfolio[{stock_index}]' }})
     else:
-        await ctx.channel.send(f'Unable to sell stock (You do not own {num} of this stock)')
+        # If selling less than all shares, just decrease stock_qty
+        collection.update_one({"_id": user["_id"]}, {"$set": { f'portfolio[{stock_index}]': { 'stock_qty': stock_qty - num } }})
+
+    response = requests.get(f'https://api.twelvedata.com/price?symbol={stock}&apikey={API_KEY}')
+    price = float(json.loads(response.text)['price'])
+
+    collection.update_one(user, {"$set": {"balance": balance + (num * price)}})
+
+    await ctx.send(f"{user['name']} sold {num} {stock}")
+
+@bot.command(help = 'reset the balance') 
+async def reset(ctx):
+    # delete data from this user from the DB
+    collection.delete_one({"_id" : ctx.message.author.id})
+    await ctx.channel.send('Balance and operations were reset')
+
+@bot.command(help = 'Lists some suggested stocks that you can buy')
+async def listStocks(ctx):
+    await ctx.send('AAPL, MSFT, GOOG, AMZN, TSLA, BRK.A, NVDA, FB, UNH, V, JNJ, WMT, JPM, PG, MA, XOM, BAC, CVX, HD, BABA')
+
+@bot.command(help = 'Lists stocks that you bought along with your balance')
+async def showPortfolio(ctx):
+    user = get_user_db(ctx.message.author.id)
+    embed = discord.Embed(title = 'Stock Portfolio')
+    embed.add_field(name = 'User', value = ctx.message.author.name)
+    balance = user['balance']
+    embed.add_field(name = 'Balance', value = balance)
+    s = ''
+    portfolio = user['portfolio']
+    for stock in portfolio:
+        s += str(stock['stock_qty']) + ' ' + stock['stock_symbol'] + ', '
+    embed.add_field(name = 'Stocks', value = s[:-2])
+    await ctx.send(embed = embed)
+
+@bot.command(help = 'Add given quantity to your current balance')
+async def deposit(ctx, qty):
+    user = get_user_db(ctx.message.author.id)
+    user['balance'] += float(qty)
+    await ctx.send(f"{user['name']}, added ${qty} to your balance. Your new balance is ${user['balance']}")
+
+# method returns the amount of stocks of the stock desired to sell and the index of that stock in the portfolio array
+def has_x_stock(stock, user):
+    for i in range(0, len(user['portfolio'])):
+        print(user['portfolio'][i]['stock_symbol'])
+        if (user['portfolio'][i]['stock_symbol'] is stock):
+            return [user['portfolio'][i]['stock_qty'], i]
+    return [-1, -1]
+
 
 @bot.command(help = 'reset the balance') 
 async def reset(ctx):
@@ -80,3 +167,6 @@ async def reset(ctx):
     await ctx.channel.send('Balance and operations were reset')
 
 bot.run(TOKEN)
+
+
+
