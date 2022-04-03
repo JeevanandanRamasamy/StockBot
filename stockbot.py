@@ -27,10 +27,9 @@ def get_user_db(id):
     return collection.find_one({"_id": id})
 
 # method returns the amount of stocks of the stock desired to sell and the index of that stock in the portfolio array
-def has_x_stock(stock, user):
+def has_x_stock(user, stock):
     for i in range(0, len(user['portfolio'])):
-        print(user['portfolio'][i]['stock_symbol'])
-        if (user['portfolio'][i]['stock_symbol'] is stock):
+        if (user['portfolio'][i]['stock_symbol'] == stock):
             return [user['portfolio'][i]['stock_qty'], i]
     return [-1, -1]
 
@@ -91,15 +90,17 @@ async def buy(ctx, num, stock):
         "stock_qty": num,
         "stock_symbol": stock
     }
-    collection.update_one({'_id': ctx.message.author.id}, {'$push': {'portfolio': newStock}})
+    collection.update_one({'_id': user_id}, {'$push': {'portfolio': newStock}})
     await ctx.send(f"{user['name']} bought {num} shares of {stock}")
 
-# TODO Need to fix sell
 @bot.command(help = 'Removes the stock from your account and adds current stock price to balance if you own the stock')
 async def sell(ctx, num, stock):
     #parsing num into an integer
     num = int(num)
-    user = get_user_db(ctx.message.author.id)
+    user_id = ctx.message.author.id
+    user = get_user_db(user_id)
+    if (not user): 
+        await ctx.send("You don't have stocks to sell!")
     balance = user['balance']
 
     # destructure qty and index of stock to sell
@@ -107,15 +108,16 @@ async def sell(ctx, num, stock):
 
     # If user doesn't have any stock or less than the amount trying to sell
     if (stock_qty == -1 or stock_qty < num):
+        print(stock_qty)
         await ctx.send(f"{user['name']}, unable to sell stock (You do not own {num} of this stock)")
         return
     
     # If selling all shares, remove stock from portfolio
     if (stock_qty == num):
-        collection.update_one({"_id": user["_id"]}, {"$pull": { f'portfolio[{stock_index}]' }})
+        collection.update_one({"_id": user_id}, {"$pull": { 'portfolio': { 'stock_symbol': stock } }})
     else:
         # If selling less than all shares, just decrease stock_qty
-        collection.update_one({"_id": user["_id"]}, {"$set": { f'portfolio[{stock_index}]': { 'stock_qty': stock_qty - num } }})
+        collection.update_one({"_id": user_id}, {"$set": { f'portfolio[{stock_index}]': { 'stock_qty': stock_qty - num } }})
 
     response = requests.get(f'https://api.twelvedata.com/price?symbol={stock}&apikey={API_KEY}')
     price = float(json.loads(response.text)['price'])
@@ -149,12 +151,9 @@ async def deposit(ctx, qty):
 
 @bot.command(help = 'reset the balance') 
 async def reset(ctx):
-    userId = ctx.message.author.id;
+    userId = ctx.message.author.id
     # delete data from this user from the DB
     collection.delete_one({"_id" : userId})
     await ctx.channel.send('Balance and operations were reset')
 
 bot.run(TOKEN)
-
-
-
