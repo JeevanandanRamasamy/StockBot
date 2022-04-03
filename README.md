@@ -5,7 +5,14 @@ A DiscordBot that allows users to buy stocks of possible companies from an API. 
 ## How to run the Discord bot
 1. Fork the repository or download the code in Github.
 2. Open the folder of the code. 
-3. Install all dependencies using (I'll get to that later)
+3. Install all dependencies using pip:
+    - discord
+    - pymongo
+    - python_dotenv
+    - json
+    - requests
+    - osd
+    - discord commands
 
 ## Features
 - Database of User's portfolios
