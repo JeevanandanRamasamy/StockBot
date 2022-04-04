@@ -103,6 +103,7 @@ async def sell(ctx, num, stock):
     user = get_user_db(user_id)
     if (not user): 
         await ctx.send("You don't have stocks to sell!")
+        return
     balance = user['balance']
 
     # destructure qty and index of stock to sell
@@ -124,7 +125,7 @@ async def sell(ctx, num, stock):
     response = requests.get(f'https://api.twelvedata.com/price?symbol={stock}&apikey={API_KEY}')
     price = float(json.loads(response.text)['price'])
 
-    collection.update_one(user, {"$set": {"balance": balance + (num * price)}})
+    collection.update_one({"_id": user_id}, {"$set": {"balance": balance + (num * price)}})
 
     await ctx.send(f"{user['name']} sold {num} {stock}")
 
@@ -135,9 +136,10 @@ async def listStocks(ctx):
 @bot.command(help = 'Lists stocks that you bought along with your balance')
 async def showPortfolio(ctx):
     user = get_user_db(ctx.message.author.id)
+    balance = user['balance']
     embed = discord.Embed(title = 'Stock Portfolio')
     embed.add_field(name = 'User', value = user['name'])
-    embed.add_field(name = 'Balance', value = user['balance'])
+    embed.add_field(name = 'Balance', value = balance)
     s = ''
     portfolio = user['portfolio']
     for stock in portfolio:
@@ -159,3 +161,4 @@ async def reset(ctx):
     await ctx.channel.send('Balance and operations were reset')
 
 bot.run(TOKEN)
+
